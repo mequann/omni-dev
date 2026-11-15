@@ -82,3 +82,4 @@ omni doctor
 This verifies:
 1. All host toolchains (`dotnet`, `node`, `npm`, `python`, `cargo`, `go`, `docker`, `git`) and outputs their active versions.
 2. Checks all ports declared in `omni.yaml` to ensure none are already in conflict before you attempt to launch your stack.
+

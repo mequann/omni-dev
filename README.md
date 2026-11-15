@@ -75,9 +75,21 @@ Need custom options? Drop an `omni.yaml` in your root for granular port, environ
 
 ### Installation
 
+Choose the method that fits your environment:
+
+#### Option 1: .NET Global Tool (Any OS with .NET installed)
 ```bash
-# Install Omni as a .NET Global Tool
 dotnet tool install --global Omni.Cli
+```
+
+#### Option 2: Standalone Shell Installer (macOS & Linux — No .NET required)
+```bash
+curl -fsSL https://raw.githubusercontent.com/mequann/omni-dev/main/install.sh | bash
+```
+
+#### Option 3: Standalone PowerShell Installer (Windows — No .NET required)
+```powershell
+irm https://raw.githubusercontent.com/mequann/omni-dev/main/install.ps1 | iex
 ```
 
 ### Basic Commands

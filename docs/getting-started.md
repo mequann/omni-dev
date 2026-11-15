@@ -81,3 +81,4 @@ If a service fails during startup (e.g., port 3000 is already in use by another 
 ```
 
 Instead of scrolling through 200 lines of console noise, Omni gives you the exact reason and the fix.
+

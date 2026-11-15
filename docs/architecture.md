@@ -58,3 +58,4 @@ Omni is built in modern C# (.NET 9 / .NET 10 preview) following clean modular ar
 ### 4. `Omni.Core.Diagnostics`
 * **`FailureAnalyzer`**: Regex pattern engine scanning buffered output when exit codes are non-zero.
 * **`PreflightChecker`**: Inspects network TCP sockets (`IPGlobalProperties`) to verify port availability prior to process launch.
+

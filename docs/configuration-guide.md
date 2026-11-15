@@ -96,3 +96,4 @@ Badge colors supported by Spectre.Console:
 
 * **`parallel: true`**: Commands execute concurrently across thread pools. Ideal for multi-project builds, linting, and type checking.
 * **`parallel: false`**: Commands execute sequentially in list order. Ideal for migrations, setup steps, or pipelines where order matters.
+

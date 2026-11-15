@@ -59,3 +59,4 @@ To add new crash detection patterns:
 1. Ensure all unit tests pass (`dotnet test`).
 2. Keep commits atomic and descriptive.
 3. Open a Pull Request on GitHub against the `main` branch.
+
