@@ -2,6 +2,7 @@ using Spectre.Console;
 using Omni.Core.Config;
 using Omni.Core.Detection;
 using Omni.Core.DevRunner;
+using Omni.Core.Diagnostics;
 using Omni.Core.Execution;
 
 namespace Omni.Cli;
@@ -14,7 +15,7 @@ public class Program
             new FigletText("Omni")
                 .Color(Color.Cyan1));
 
-        AnsiConsole.MarkupLine("[bold grey]Universal Developer Orchestrator & Concurrent Dev Runner[/]\n");
+        AnsiConsole.MarkupLine("[bold grey]Universal Developer Orchestrator & Intelligent Observability Engine[/]\n");
 
         if (args.Length == 0)
         {
@@ -27,6 +28,7 @@ public class Program
         {
             "init" => RunInit(),
             "analyze" => RunAnalyze(),
+            "doctor" => await RunDoctorAsync(),
             "dev" => await RunDevAsync(),
             "run" => await RunTaskAsync(args.Length > 1 ? args[1] : null),
             _ => ShowHelp()
@@ -62,14 +64,23 @@ public class Program
             svcTable.AddColumn("[bold]Command[/]");
             svcTable.AddColumn("[bold]Directory[/]");
             svcTable.AddColumn("[bold]Port[/]");
+            svcTable.AddColumn("[bold]Port Status[/]");
 
             foreach (var (name, svc) in config.Services)
             {
+                string portStatus = "-";
+                if (svc.Port.HasValue)
+                {
+                    var status = PreflightChecker.CheckPort(svc.Port.Value);
+                    portStatus = status.IsInUse ? "[red]Busy (Conflict)[/]" : "[green]Available[/]";
+                }
+
                 svcTable.AddRow(
                     $"[bold {svc.Color ?? "cyan"}]{name}[/]",
                     $"[grey]{Markup.Escape(svc.Command)}[/]",
                     $"[white]{svc.Dir ?? "."}[/]",
-                    $"[yellow]{svc.Port?.ToString() ?? "-"}[/]"
+                    $"[yellow]{svc.Port?.ToString() ?? "-"}[/]",
+                    portStatus
                 );
             }
             AnsiConsole.Write(svcTable);
@@ -120,7 +131,63 @@ public class Program
 
         AnsiConsole.MarkupLine("\n[bold green]💡 Orchestration Insights:[/] ");
         AnsiConsole.MarkupLine(" • [white]Run all services concurrently:[/] [cyan]omni dev[/]");
+        AnsiConsole.MarkupLine(" • [white]Check system health & ports:[/] [cyan]omni doctor[/]");
         AnsiConsole.MarkupLine(" • [white]Lock or customize your configuration:[/] [cyan]omni init[/]");
+
+        return 0;
+    }
+
+    private static async Task<int> RunDoctorAsync()
+    {
+        AnsiConsole.MarkupLine("[bold cyan]Running System & Workspace Pre-flight Check...[/]\n");
+
+        var table = new Table().Border(TableBorder.Rounded);
+        table.AddColumn("[bold]Tool / Runtime[/]");
+        table.AddColumn("[bold]Status[/]");
+        table.AddColumn("[bold]Detected Version / Notes[/]");
+
+        var statuses = await PreflightChecker.CheckAllToolchainsAsync();
+
+        foreach (var tool in statuses)
+        {
+            table.AddRow(
+                $"[bold]{tool.Name}[/]",
+                tool.IsInstalled ? "[green]✔ Installed[/]" : "[red]✘ Not Found[/]",
+                tool.IsInstalled ? $"[grey]{Markup.Escape(tool.Version ?? "")}[/]" : "[yellow]Optional / Not in PATH[/]"
+            );
+        }
+
+        AnsiConsole.Write(table);
+
+        // Check workspace ports
+        var currentDir = Directory.GetCurrentDirectory();
+        var configPath = Path.Combine(currentDir, "omni.yaml");
+        var config = OmniConfig.LoadFromFile(configPath);
+
+        if (config != null && config.Services.Any(s => s.Value.Port.HasValue))
+        {
+            AnsiConsole.MarkupLine("\n[bold]Checking Configured Ports:[/]");
+            var portTable = new Table().Border(TableBorder.Rounded);
+            portTable.AddColumn("[bold]Service[/]");
+            portTable.AddColumn("[bold]Port[/]");
+            portTable.AddColumn("[bold]Port State[/]");
+
+            foreach (var (name, svc) in config.Services)
+            {
+                if (svc.Port.HasValue)
+                {
+                    var portStatus = PreflightChecker.CheckPort(svc.Port.Value);
+                    portTable.AddRow(
+                        $"[cyan]{name}[/]",
+                        svc.Port.Value.ToString(),
+                        portStatus.IsInUse 
+                            ? "[bold red]⚠ Port Conflict - In Use[/]" 
+                            : "[green]✔ Available[/]"
+                    );
+                }
+            }
+            AnsiConsole.Write(portTable);
+        }
 
         return 0;
     }
@@ -136,6 +203,16 @@ public class Program
 
         if (config != null && config.Services.Any())
         {
+            // Pre-flight check on declared ports
+            foreach (var (name, svc) in config.Services)
+            {
+                if (svc.Port.HasValue && PreflightChecker.IsPortInUse(svc.Port.Value))
+                {
+                    AnsiConsole.MarkupLine(
+                        $"[bold yellow]⚠ Preflight Warning:[/] Port [red]{svc.Port.Value}[/] for service '[cyan]{name}[/]' is already in use by another process!");
+                }
+            }
+
             int idx = 0;
             foreach (var (name, svc) in config.Services)
             {
@@ -186,18 +263,38 @@ public class Program
 
         AnsiConsole.MarkupLine("[bold]Starting services in parallel... (Press [red]Ctrl+C[/] to stop)[/]\n");
 
-        await manager.RunAllAsync((serviceName, line, isError) =>
-        {
-            var prefix = $"[bold][[ {serviceName} ]][/]";
-            if (isError)
+        await manager.RunAllAsync(
+            logCallback: (serviceName, line, isError) =>
             {
-                AnsiConsole.MarkupLine($"{prefix} [red]{Markup.Escape(line)}[/]");
-            }
-            else
+                var prefix = $"[bold][[ {serviceName} ]][/]";
+                if (isError)
+                {
+                    AnsiConsole.MarkupLine($"{prefix} [red]{Markup.Escape(line)}[/]");
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine($"{prefix} [grey]{Markup.Escape(line)}[/]");
+                }
+            },
+            diagnosisCallback: diag =>
             {
-                AnsiConsole.MarkupLine($"{prefix} [grey]{Markup.Escape(line)}[/]");
-            }
-        }, cts.Token);
+                var panel = new Panel(new Markup(
+                    $"[bold red]Issue:[/] {Markup.Escape(diag.Summary)}\n\n" +
+                    $"[bold yellow]💡 Why it happened:[/] {Markup.Escape(diag.WhyItHappened)}\n\n" +
+                    $"[bold green]👉 Suggested Fix:[/] {Markup.Escape(diag.SuggestedRemediation)}"
+                ))
+                {
+                    Header = new PanelHeader($"[bold red] Diagnostic Failure in '{diag.ServiceName}' (Exit code: {diag.ExitCode}) [/]"),
+                    Border = BoxBorder.Rounded,
+                    BorderStyle = new Style(Color.Red)
+                };
+
+                AnsiConsole.WriteLine();
+                AnsiConsole.Write(panel);
+                AnsiConsole.WriteLine();
+            },
+            cancellationToken: cts.Token
+        );
 
         return 0;
     }
@@ -273,7 +370,8 @@ public class Program
         AnsiConsole.MarkupLine("[bold]Universal Commands:[/] ");
         AnsiConsole.MarkupLine("  [cyan]init[/]          Create an omni.yaml configuration for your stack");
         AnsiConsole.MarkupLine("  [cyan]analyze[/]       Inspect workspace, detect toolchains, and report layout");
-        AnsiConsole.MarkupLine("  [cyan]dev[/]           Concurrently run all services (frontend, backend, workers, DB)");
+        AnsiConsole.MarkupLine("  [cyan]doctor[/]        Run preflight health check on runtimes, ports, and tools");
+        AnsiConsole.MarkupLine("  [cyan]dev[/]           Concurrently run all services with smart failure diagnostics");
         AnsiConsole.MarkupLine("  [cyan]run <task>[/]     Execute pipeline tasks (build, test, deploy) with parallel support");
         return 0;
     }
