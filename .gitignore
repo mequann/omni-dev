@@ -1,0 +1,20 @@
+## Build and Output Folders
+bin/
+obj/
+artifacts/
+dist/
+node_modules/
+.venv/
+__pycache__/
+
+## IDE and Editor Files
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## OS Files
+.DS_Store
+Thumbs.db

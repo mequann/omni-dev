@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Omni.Cli/Omni.Cli.csproj" />
+    <Project Path="src/Omni.Core/Omni.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Omni.Core.Tests/Omni.Core.Tests.csproj" />
+  </Folder>
+</Solution>
