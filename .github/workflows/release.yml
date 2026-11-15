@@ -28,6 +28,7 @@ jobs:
     needs: test
     runs-on: ${{ matrix.target.os }}
     strategy:
+      fail-fast: false
       matrix:
         target:
           - name: windows-x64
@@ -46,7 +47,7 @@ jobs:
             binary: omni
             archive: omni-macos-arm64.tar.gz
           - name: macos-x64
-            os: macos-13
+            os: macos-latest
             rid: osx-x64
             binary: omni
             archive: omni-macos-x64.tar.gz
@@ -68,12 +69,30 @@ jobs:
         -p:PublishTrimmed=false
         -o publish
 
+    - name: Inspect & Ensure Binary Name (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        Get-ChildItem publish
+        if (Test-Path publish/Omni.Cli.exe) {
+          Move-Item publish/Omni.Cli.exe publish/omni.exe -Force
+        }
+
+    - name: Inspect & Ensure Binary Name (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        ls -la publish/
+        if [ -f publish/Omni.Cli ]; then
+          mv publish/Omni.Cli publish/omni
+        fi
+        chmod +x publish/omni
+
     - name: Archive Binary (Windows)
       if: runner.os == 'Windows'
       shell: pwsh
       run: Compress-Archive -Path publish/${{ matrix.target.binary }} -DestinationPath ${{ matrix.target.archive }}
 
-    - name: Archive Binary (Unix)
+    - name: Archive Binary (macOS/Linux)
       if: runner.os != 'Windows'
       run: tar -czf ${{ matrix.target.archive }} -C publish ${{ matrix.target.binary }}
 
