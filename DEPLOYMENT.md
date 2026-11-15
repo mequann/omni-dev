@@ -71,9 +71,49 @@ If you prefer using the command line instead of the browser upload:
 
 ---
 
-## Channel 3: npm (`npx omni-dev`) — Already Done! 🎉
+## Channel 3: npm Registry (`npx omni-dev`)
 
-Users can now run Omni instantly:
+### What it does:
+Allows web, TypeScript, Node.js, and polyglot developers to run Omni instantly without installing .NET:
 ```bash
 npx omni-dev dev
 ```
+
+### Complete Steps to Publish or Update npm Releases:
+
+1. **Step 1: Check your npm login**
+   In your terminal, check if you are logged in:
+   ```bash
+   npm whoami
+   ```
+   If it outputs your npm username, you're ready. If not, log in:
+   ```bash
+   npm login
+   ```
+   *(Enter your npm username, password, and the one-time code sent to your email).*
+
+2. **Step 2: Update the version number (for new updates)**
+   When you release a new version (e.g. going from `0.1.0` to `0.1.1`), update the version:
+   * Open `npm/package.json` and change:
+     ```json
+     "version": "0.1.1"
+     ```
+   *(Or run `npm version patch` directly inside the `npm` folder).*
+
+3. **Step 3: Publish to npm**
+   Navigate to the `npm` directory and run:
+   ```bash
+   cd npm
+   npm publish --access public
+   cd ..
+   ```
+
+4. **Step 4: Verify the release**
+   Check that your new version is live on the registry:
+   ```bash
+   npm view omni-dev version
+   ```
+   And test running it directly:
+   ```bash
+   npx omni-dev@latest --version
+   ```
