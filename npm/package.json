@@ -1,0 +1,33 @@
+{
+  "name": "omni-dev",
+  "version": "0.1.0",
+  "description": "Universal Polyglot Dev Orchestrator & Intelligent Observability Engine",
+  "main": "bin/omni.js",
+  "bin": {
+    "omni": "./bin/omni.js",
+    "omni-dev": "./bin/omni.js"
+  },
+  "keywords": [
+    "orchestrator",
+    "developer-tools",
+    "polyglot",
+    "concurrent",
+    "microservices",
+    "observability",
+    "dx",
+    "monorepo"
+  ],
+  "author": "mequann <mekacham381@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mequann/omni-dev.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mequann/omni-dev/issues"
+  },
+  "homepage": "https://github.com/mequann/omni-dev#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
