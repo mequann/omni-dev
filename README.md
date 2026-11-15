@@ -149,6 +149,7 @@ Detailed guides and specifications:
 * ⚙️ **[`omni.yaml` Configuration Guide](docs/configuration-guide.md)** – Complete reference for ports, environment variables, dependencies, and custom tasks.
 * 🔍 **[Failure Diagnostics & Observability](docs/failure-diagnostics.md)** – In-depth guide on crash pattern recognition, port conflicts, and root-cause explanations.
 * 📐 **[Architecture & Design](docs/architecture.md)** – Detailed breakdown of `Omni.Core`, `Omni.Cli`, and process lifecycle management.
+* 🚀 **[Deployment Guide](docs/deployment-guide.md)** – Step-by-step instructions for publishing standalone binaries, NuGet, and npm.
 * 🤝 **[Contributing Guide](CONTRIBUTING.md)** – How to build from source, add language detectors, and write diagnostic rules.
 
 ---
