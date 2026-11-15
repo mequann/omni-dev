@@ -11,7 +11,7 @@
     <!-- NuGet Tool Packaging -->
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>omni</ToolCommandName>
-    <PackageId>Omni.Cli</PackageId>
+    <PackageId>OmniDev.Cli</PackageId>
     <Version>0.1.0</Version>
     <Authors>mequann</Authors>
     <Description>Universal Polyglot Dev Orchestrator &amp; Concurrent Runner with Smart Failure Diagnostics.</Description>

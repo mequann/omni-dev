@@ -32,7 +32,7 @@ git push origin v0.1.1
 ## Channel 2: NuGet.org (.NET Global Tool)
 
 ### What it does:
-Allows developers to install Omni via `dotnet tool install --global Omni.Cli`.
+Allows developers to install Omni via `dotnet tool install --global OmniDev.Cli`.
 
 ### The Easiest Method: Drag & Drop via Web Browser (No API keys needed!)
 
@@ -42,18 +42,18 @@ Allows developers to install Omni via `dotnet tool install --global Omni.Cli`.
    dotnet pack src/Omni.Cli -c Release
    ```
    This generates a package file at:
-   `src/Omni.Cli/bin/Release/Omni.Cli.0.1.0.nupkg`
+   `src/Omni.Cli/bin/Release/OmniDev.Cli.0.1.0.nupkg`
 
 2. **Step 2: Upload to NuGet.org**
    * Open your browser and go to: **[https://www.nuget.org/packages/manage/upload](https://www.nuget.org/packages/manage/upload)**
    * Log in (with Microsoft or GitHub).
-   * Click **Browse** or drag and drop the file `Omni.Cli.0.1.0.nupkg` into the upload box.
+   * Drag and drop the file `OmniDev.Cli.0.1.0.nupkg` into the upload box.
    * Review the package details and click **Submit**.
 
 3. **Step 3: Verification**
    After ~5 minutes, open any terminal and test:
    ```bash
-   dotnet tool install --global Omni.Cli
+   dotnet tool install --global OmniDev.Cli
    omni --version
    ```
 

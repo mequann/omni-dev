@@ -9,7 +9,7 @@ Omni is designed to get you from zero to running all your services concurrently 
 ### Step 1: Install Omni
 Install Omni as a global .NET tool:
 ```bash
-dotnet tool install --global Omni.Cli
+dotnet tool install --global OmniDev.Cli
 ```
 
 ### Step 2: Navigate to Any Project

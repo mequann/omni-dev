@@ -84,7 +84,7 @@ npx omni-dev dev
 
 #### Option 2: .NET Global Tool (Any OS with .NET 9 or 10 installed)
 ```bash
-dotnet tool install --global Omni.Cli
+dotnet tool install --global OmniDev.Cli
 ```
 
 #### Option 3: Standalone Shell Installer (macOS & Linux — No runtimes required)
