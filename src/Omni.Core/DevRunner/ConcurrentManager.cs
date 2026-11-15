@@ -4,10 +4,10 @@ namespace Omni.Core.DevRunner;
 
 public record ServiceSpec(
     string Name,
-    string Command,
-    string Arguments,
+    string RawCommand,
     string WorkingDirectory,
-    string ColorHex = "Cyan"
+    string Color = "cyan",
+    Dictionary<string, string>? Env = null
 );
 
 public class ConcurrentManager
@@ -25,16 +25,16 @@ public class ConcurrentManager
     {
         var tasks = _services.Select(svc => Task.Run(async () =>
         {
-            logCallback(svc.Name, $"Starting '{svc.Command} {svc.Arguments}'...", false);
+            logCallback(svc.Name, $"Starting: '{svc.RawCommand}' in {svc.WorkingDirectory}", false);
 
-            var exitCode = await ProcessRunner.RunAsync(
-                svc.Command,
-                svc.Arguments,
+            var exitCode = await ProcessRunner.RunShellCommandAsync(
+                svc.RawCommand,
                 svc.WorkingDirectory,
                 output =>
                 {
                     logCallback(svc.Name, output.Line, output.IsError);
                 },
+                svc.Env,
                 cancellationToken
             );
 

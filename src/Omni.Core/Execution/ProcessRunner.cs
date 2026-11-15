@@ -7,16 +7,30 @@ public record ProcessOutputEventArgs(string Line, bool IsError, DateTime Timesta
 
 public class ProcessRunner
 {
-    public static async Task<int> RunAsync(
-        string command,
-        string arguments,
+    public static async Task<int> RunShellCommandAsync(
+        string rawCommandLine,
         string workingDirectory,
         Action<ProcessOutputEventArgs>? onOutput = null,
+        Dictionary<string, string>? environmentVariables = null,
         CancellationToken cancellationToken = default)
     {
+        string fileName;
+        string arguments;
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            fileName = "cmd.exe";
+            arguments = $"/c {rawCommandLine}";
+        }
+        else
+        {
+            fileName = "/bin/sh";
+            arguments = $"-c \"{rawCommandLine.Replace("\"", "\\\"")}\"";
+        }
+
         var psi = new ProcessStartInfo
         {
-            FileName = command,
+            FileName = fileName,
             Arguments = arguments,
             WorkingDirectory = string.IsNullOrEmpty(workingDirectory) ? Directory.GetCurrentDirectory() : workingDirectory,
             RedirectStandardOutput = true,
@@ -24,6 +38,14 @@ public class ProcessRunner
             UseShellExecute = false,
             CreateNoWindow = true
         };
+
+        if (environmentVariables != null)
+        {
+            foreach (var kvp in environmentVariables)
+            {
+                psi.EnvironmentVariables[kvp.Key] = kvp.Value;
+            }
+        }
 
         using var process = new Process { StartInfo = psi };
 

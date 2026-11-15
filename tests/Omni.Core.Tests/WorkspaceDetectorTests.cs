@@ -24,3 +24,4 @@ public class WorkspaceDetectorTests
         Assert.Contains(projects, p => p.Kind == ToolchainKind.DotNet);
     }
 }
+
