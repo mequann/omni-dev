@@ -1,108 +1,79 @@
 # Omni Deployment & Publishing Guide 🚀
 
-This document details the exact steps for deploying and publishing **Omni** across all three distribution channels:
-
-1. **Standalone Native Binaries (GitHub Releases)**
-2. **NuGet.org (.NET Global Tool)**
-3. **npm Package Registry (`npx omni-dev`)**
+Congratulations on publishing to **npm**! Here is the crystal-clear guide for the remaining two channels:
 
 ---
 
-## 📋 Quick Pre-Release Checklist
+## Channel 1: Standalone Binaries (GitHub Releases)
 
-1. **Verify all tests pass**:
-   ```bash
-   dotnet test
-   ```
-2. **Confirm version numbers** match across projects:
-   * `src/Omni.Cli/Omni.Cli.csproj`: `<Version>0.1.0</Version>`
-   * `src/Omni.Core/Omni.Core.csproj`: `<Version>0.1.0</Version>`
-   * `npm/package.json`: `"version": "0.1.0"`
+### What it does:
+Creates the downloadable files (`omni.exe` for Windows, `omni` for Mac & Linux) on your GitHub repository under **Releases**.
 
----
+### How to do it (Only 2 Commands):
+You don't need to build anything manually on your machine. GitHub Actions does it automatically in the cloud.
 
-## 📦 1. Standalone Binaries (GitHub Releases)
-
-Standalone binaries bundle the runtime into a single executable. End-users do not need .NET, Node, or any runtime installed.
-
-### Automated Publishing (Recommended)
-Our GitHub Actions workflow in `.github/workflows/release.yml` automatically compiles and packages all native binaries when you push a version tag:
-
+Run these two commands in your terminal:
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.1
+git push origin v0.1.1
 ```
 
-GitHub Actions will automatically build and publish:
-* **Windows (x64)**: `omni-windows-x64.zip` (contains `omni.exe`)
-* **Linux (x64)**: `omni-linux-x64.tar.gz` (contains `omni`)
-* **macOS (Apple Silicon ARM64)**: `omni-macos-arm64.tar.gz`
-* **macOS (Intel x64)**: `omni-macos-x64.tar.gz`
-
-### Manual Local Build (Optional)
-* **Windows**:
-  ```bash
-  dotnet publish src/Omni.Cli -c Release -r win-x64 -f net9.0 --self-contained true -p:PublishSingleFile=true -o ./dist/windows
-  ```
-* **Linux**:
-  ```bash
-  dotnet publish src/Omni.Cli -c Release -r linux-x64 -f net9.0 --self-contained true -p:PublishSingleFile=true -o ./dist/linux
-  ```
-* **macOS (Apple Silicon)**:
-  ```bash
-  dotnet publish src/Omni.Cli -c Release -r osx-arm64 -f net9.0 --self-contained true -p:PublishSingleFile=true -o ./dist/macos-arm64
-  ```
+### Where to see it:
+1. Open: **[https://github.com/mequann/omni-dev/actions](https://github.com/mequann/omni-dev/actions)** to watch the cloud build.
+2. In ~3 minutes, open: **[https://github.com/mequann/omni-dev/releases](https://github.com/mequann/omni-dev/releases)**
+3. You will see the release with all four downloadable archives:
+   * `omni-windows-x64.zip`
+   * `omni-linux-x64.tar.gz`
+   * `omni-macos-arm64.tar.gz`
+   * `omni-macos-x64.tar.gz`
 
 ---
 
-## 📦 2. NuGet.org (.NET Global Tool)
+## Channel 2: NuGet.org (.NET Global Tool)
 
-Publishing to NuGet allows developers with .NET to install Omni via `dotnet tool install --global Omni.Cli`.
+### What it does:
+Allows developers to install Omni via `dotnet tool install --global Omni.Cli`.
 
-### Automated via Trusted Publishing (OIDC)
-Once you configure **Trusted Publishing** on NuGet.org pointing to `mequann/omni-dev` with workflow `release.yml`:
-* Every time you push a tag (`git push origin v0.1.0`), GitHub Actions securely mints an OIDC token and uploads the package to NuGet.org automatically.
+### The Easiest Method: Drag & Drop via Web Browser (No API keys needed!)
 
-### Manual Local Publish via API Key
-1. Generate an API Key on [nuget.org](https://www.nuget.org/account/apikeys).
-2. Pack and push:
+1. **Step 1: Generate the `.nupkg` package on your computer**
+   Run this in your repository root:
    ```bash
-   dotnet pack src/Omni.Cli -c Release -o ./dist/nupkg
-   dotnet nuget push ./dist/nupkg/Omni.Cli.*.nupkg --api-key <YOUR_NUGET_API_KEY> --source https://api.nuget.org/v3/index.json --skip-duplicate
+   dotnet pack src/Omni.Cli -c Release
    ```
+   This generates a package file at:
+   `src/Omni.Cli/bin/Release/Omni.Cli.0.1.0.nupkg`
 
----
+2. **Step 2: Upload to NuGet.org**
+   * Open your browser and go to: **[https://www.nuget.org/packages/manage/upload](https://www.nuget.org/packages/manage/upload)**
+   * Log in (with Microsoft or GitHub).
+   * Click **Browse** or drag and drop the file `Omni.Cli.0.1.0.nupkg` into the upload box.
+   * Review the package details and click **Submit**.
 
-## 📦 3. npm Registry (`npx omni-dev`)
-
-The `npm/` directory contains the wrapper package for JavaScript, Next.js, and web developers.
-
-### Publishing Steps:
-1. Log in to npm in your terminal:
+3. **Step 3: Verification**
+   After ~5 minutes, open any terminal and test:
    ```bash
-   npm login
-   ```
-2. Navigate into the `npm` directory:
-   ```bash
-   cd npm
-   ```
-3. Publish publicly:
-   ```bash
-   npm publish --access public
-   ```
-4. Return to root:
-   ```bash
-   cd ..
+   dotnet tool install --global Omni.Cli
+   omni --version
    ```
 
 ---
 
-## 🚀 How End-Users Install & Run Omni
+### Alternative Method: Publish via Terminal Command
 
-| Method | User Command | Prerequisites |
-| :--- | :--- | :--- |
-| **npm (Zero Install)** | `npx omni-dev dev` | Node.js / npm |
-| **npm (Global)** | `npm install -g omni-dev`<br>`omni dev` | Node.js / npm |
-| **.NET Tool** | `dotnet tool install --global Omni.Cli`<br>`omni dev` | .NET 9 or 10 SDK |
-| **macOS & Linux One-Liner** | `curl -fsSL https://raw.githubusercontent.com/mequann/omni-dev/main/install.sh \| bash` | None |
-| **Windows One-Liner** | `irm https://raw.githubusercontent.com/mequann/omni-dev/main/install.ps1 \| iex` | None |
+If you prefer using the command line instead of the browser upload:
+1. Go to **[https://www.nuget.org/account/apikeys](https://www.nuget.org/account/apikeys)**.
+2. Click **Create**, name it `omni-key`, and click **Copy**.
+3. Run this command (replacing `<YOUR_KEY>` with your copied key):
+   ```bash
+   dotnet nuget push src/Omni.Cli/bin/Release/Omni.Cli.*.nupkg --api-key <YOUR_KEY> --source https://api.nuget.org/v3/index.json
+   ```
+
+---
+
+## Channel 3: npm (`npx omni-dev`) — Already Done! 🎉
+
+Users can now run Omni instantly:
+```bash
+npx omni-dev dev
+```
