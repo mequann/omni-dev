@@ -73,21 +73,26 @@ Need custom options? Drop an `omni.yaml` in your root for granular port, environ
 
 ## 🚀 Quick Start
 
-### Installation
+### Installation & Run
 
 Choose the method that fits your environment:
 
-#### Option 1: .NET Global Tool (Any OS with .NET installed)
+#### Option 1: npx (Zero Installation — Any OS with Node.js)
+```bash
+npx omni-dev dev
+```
+
+#### Option 2: .NET Global Tool (Any OS with .NET 9 or 10 installed)
 ```bash
 dotnet tool install --global Omni.Cli
 ```
 
-#### Option 2: Standalone Shell Installer (macOS & Linux — No .NET required)
+#### Option 3: Standalone Shell Installer (macOS & Linux — No runtimes required)
 ```bash
 curl -fsSL https://raw.githubusercontent.com/mequann/omni-dev/main/install.sh | bash
 ```
 
-#### Option 3: Standalone PowerShell Installer (Windows — No .NET required)
+#### Option 4: Standalone PowerShell Installer (Windows — No runtimes required)
 ```powershell
 irm https://raw.githubusercontent.com/mequann/omni-dev/main/install.ps1 | iex
 ```
@@ -149,8 +154,18 @@ Detailed guides and specifications:
 * ⚙️ **[`omni.yaml` Configuration Guide](docs/configuration-guide.md)** – Complete reference for ports, environment variables, dependencies, and custom tasks.
 * 🔍 **[Failure Diagnostics & Observability](docs/failure-diagnostics.md)** – In-depth guide on crash pattern recognition, port conflicts, and root-cause explanations.
 * 📐 **[Architecture & Design](docs/architecture.md)** – Detailed breakdown of `Omni.Core`, `Omni.Cli`, and process lifecycle management.
-* 🚀 **[Deployment Guide](docs/deployment-guide.md)** – Step-by-step instructions for publishing standalone binaries, NuGet, and npm.
+* 🚢 **[Deployment Guide](DEPLOYMENT.md)** – Step-by-step instructions for publishing standalone binaries, NuGet, and npm.
 * 🤝 **[Contributing Guide](CONTRIBUTING.md)** – How to build from source, add language detectors, and write diagnostic rules.
+
+---
+
+## 🚢 Publishing & Deployment
+
+Omni is set up for multi-channel publishing. See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the complete guide:
+
+1. **Standalone Binaries (GitHub Releases)**: Auto-built for Windows, Linux, and macOS upon pushing a version tag (`git push origin v0.1.0`).
+2. **NuGet.org**: Published via GitHub Actions using **Trusted Publishing (OIDC)** without API keys.
+3. **npm Registry**: Package wrapper in `npm/` ready for `npx omni-dev` via `npm publish --access public`.
 
 ---
 

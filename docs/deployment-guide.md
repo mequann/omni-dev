@@ -162,3 +162,4 @@ omni dev
 | **GitHub Binaries** | `git push origin v0.1.0` | `dotnet publish ... -r <rid>` | `curl .../install.sh \| bash`<br>`irm .../install.ps1 \| iex` |
 | **NuGet.org** | `git push origin v0.1.0` (OIDC) | `dotnet nuget push ...` | `dotnet tool install -g Omni.Cli` |
 | **npm Registry** | *(via tag or manual)* | `cd npm && npm publish --access public` | `npx omni-dev dev`<br>`npm i -g omni-dev` |
+
