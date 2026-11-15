@@ -26,13 +26,21 @@ public class Program
 
         return command switch
         {
+            "-h" or "--help" or "help" => ShowHelp(),
+            "-v" or "--version" or "version" => ShowVersion(),
             "init" => RunInit(),
             "analyze" => RunAnalyze(),
             "doctor" => await RunDoctorAsync(),
             "dev" => await RunDevAsync(),
             "run" => await RunTaskAsync(args.Length > 1 ? args[1] : null),
-            _ => ShowHelp()
+            _ => ShowHelp(command)
         };
+    }
+
+    private static int ShowVersion()
+    {
+        AnsiConsole.MarkupLine("[bold cyan]Omni[/] version [green]0.2.0-preview[/] (.NET 9 / .NET 10)");
+        return 0;
     }
 
     private static int RunInit()
@@ -364,15 +372,35 @@ public class Program
         return 0;
     }
 
-    private static int ShowHelp()
+    private static int ShowHelp(string? unknownCommand = null)
     {
-        AnsiConsole.MarkupLine("[bold]Usage:[/] omni <command>\n");
-        AnsiConsole.MarkupLine("[bold]Universal Commands:[/] ");
-        AnsiConsole.MarkupLine("  [cyan]init[/]          Create an omni.yaml configuration for your stack");
-        AnsiConsole.MarkupLine("  [cyan]analyze[/]       Inspect workspace, detect toolchains, and report layout");
-        AnsiConsole.MarkupLine("  [cyan]doctor[/]        Run preflight health check on runtimes, ports, and tools");
-        AnsiConsole.MarkupLine("  [cyan]dev[/]           Concurrently run all services with smart failure diagnostics");
-        AnsiConsole.MarkupLine("  [cyan]run <task>[/]     Execute pipeline tasks (build, test, deploy) with parallel support");
+        if (!string.IsNullOrEmpty(unknownCommand))
+        {
+            AnsiConsole.MarkupLine($"[red]Unknown command:[/] '[yellow]{Markup.Escape(unknownCommand)}[/]'\n");
+        }
+
+        AnsiConsole.MarkupLine("[bold]Usage:[/] [cyan]omni[/] [yellow]<command>[/] [grey][[options]][/]\n");
+
+        var table = new Table().Border(TableBorder.None).HideHeaders();
+        table.AddColumn("Command");
+        table.AddColumn("Description");
+
+        table.AddRow("[bold cyan]dev[/]", "Run all discovered or configured services concurrently with smart failure diagnostics.");
+        table.AddRow("[bold cyan]doctor[/]", "Run a pre-flight health check on host tools (.NET, Node, Python, Docker) & check port availability.");
+        table.AddRow("[bold cyan]analyze[/]", "Scan workspace, detect all technology stacks, and print component layout.");
+        table.AddRow("[bold cyan]init[/]", "Create an annotated [yellow]omni.yaml[/] template in the current directory.");
+        table.AddRow("[bold cyan]run <task>[/]", "Execute defined pipeline tasks (e.g. [yellow]build[/], [yellow]test[/]) sequentially or in parallel.");
+        table.AddRow("[bold cyan]--version, -v[/]", "Display version information.");
+        table.AddRow("[bold cyan]--help, -h[/]", "Display this help message.");
+
+        AnsiConsole.Write(table);
+
+        AnsiConsole.MarkupLine("\n[bold]Quick Examples:[/] ");
+        AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni dev[/]                [grey]# Start entire stack concurrently[/]");
+        AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni doctor[/]             [grey]# Check runtimes and verify no port conflicts[/]");
+        AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni run test[/]           [grey]# Execute all project test suites[/]");
+        AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni init[/]               [grey]# Generate custom omni.yaml[/]");
+
         return 0;
     }
 }

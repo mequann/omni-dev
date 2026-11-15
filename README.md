@@ -129,21 +129,33 @@ services:
 
 ---
 
+## 📚 Documentation
+
+Detailed guides and specifications:
+
+* 🚀 **[Getting Started Guide](docs/getting-started.md)** – 60-second quickstart, zero config usage, and basic workflows.
+* ⚙️ **[`omni.yaml` Configuration Guide](docs/configuration-guide.md)** – Complete reference for ports, environment variables, dependencies, and custom tasks.
+* 🔍 **[Failure Diagnostics & Observability](docs/failure-diagnostics.md)** – In-depth guide on crash pattern recognition, port conflicts, and root-cause explanations.
+* 📐 **[Architecture & Design](docs/architecture.md)** – Detailed breakdown of `Omni.Core`, `Omni.Cli`, and process lifecycle management.
+* 🤝 **[Contributing Guide](CONTRIBUTING.md)** – How to build from source, add language detectors, and write diagnostic rules.
+
+---
+
 ## 🗺️ Roadmap
 
 - [x] Polyglot auto-discovery engine (.NET, Node, Python, Go, Rust)
 - [x] Concurrent multi-process runner with ANSI stream prefixing
 - [x] Config schema & generator (`omni.yaml`)
-- [ ] Built-in Failure Diagnostic Engine (pattern-matching common crash signatures)
+- [x] Built-in Failure Diagnostic Engine (pattern-matching common crash signatures)
+- [x] Pre-flight health checks & `omni doctor` (runtime availability & port verification)
 - [ ] Interactive TUI dashboard (switch between service logs, restart individual services with hotkeys)
-- [ ] Pre-flight health checks (verify dependencies, ports, and databases before launch)
 - [ ] Cross-tool execution history and bottleneck analysis
 
 ---
 
 ## 🤝 Contributing & License
 
-Contributions, issues, and feature requests are welcome!
+Contributions, issues, and feature requests are welcome! Check out our [Contributing Guide](CONTRIBUTING.md) to get started.
 
 Distributed under the **MIT License**. See [LICENSE](LICENSE) for more information.
 
