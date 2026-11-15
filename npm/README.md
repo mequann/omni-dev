@@ -38,3 +38,4 @@ omni dev
 Full documentation, configuration options (`omni.yaml`), and guides:
 * **GitHub Repository**: [https://github.com/mequann/omni-dev](https://github.com/mequann/omni-dev)
 * **License**: MIT
+
