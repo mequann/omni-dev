@@ -78,3 +78,4 @@ public class TaskDefinition
     public List<string> DependsOn { get; set; } = new();
     public List<string> Commands { get; set; } = new();
 }
+
