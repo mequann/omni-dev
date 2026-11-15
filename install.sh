@@ -52,3 +52,4 @@ echo "✔ Omni installed successfully to $INSTALL_DIR/omni"
 echo ""
 echo "Ensure $INSTALL_DIR is in your PATH:"
 echo "  export PATH=\"\$PATH:$INSTALL_DIR\""
+
