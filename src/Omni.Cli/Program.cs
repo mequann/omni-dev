@@ -209,6 +209,7 @@ public class Program
         var argsList = devArgs?.ToList() ?? new List<string>();
         bool openInBrowser = argsList.Contains("--open") || argsList.Contains("-o");
         bool autoKill = argsList.Contains("--kill") || argsList.Contains("-k");
+        bool useTui = argsList.Contains("--split") || argsList.Contains("-s") || argsList.Contains("--tui");
 
         var currentDir = Directory.GetCurrentDirectory();
         var configPath = Path.Combine(currentDir, "omni.yaml");
@@ -363,6 +364,19 @@ public class Program
             AnsiConsole.MarkupLine("\n[bold red]Stopping all services gracefully...[/]");
             cts.Cancel();
         };
+
+        if (useTui)
+        {
+            var runTask = manager.RunAllAsync(
+                logCallback: (_, _, _) => { },
+                diagnosisCallback: _ => { },
+                cancellationToken: cts.Token
+            );
+
+            await TuiDashboard.RunAsync(manager, runTask, cts, url => TryOpenBrowser(url));
+            await runTask;
+            return 0;
+        }
 
         AnsiConsole.MarkupLine("[bold]Streaming logs... (Press [red]Ctrl+C[/] to stop)[/]\n");
 
@@ -670,7 +684,7 @@ public class Program
         table.AddColumn("Command");
         table.AddColumn("Description");
 
-        table.AddRow("[bold cyan]dev [[--open|-o]] [[--kill|-k]][/]", "Run all services concurrently. Auto-remaps occupied ports to free ones (or --kill to force stop).");
+        table.AddRow("[bold cyan]dev [[--split|-s]] [[--open|-o]] [[--kill|-k]][/]", "Run all services concurrently in multi-pane TUI dashboard or stream mode.");
         table.AddRow("[bold cyan]build[/]", "Build all workspace services or execute 'tasks.build' with smart failure diagnostics.");
         table.AddRow("[bold cyan]open[/]", "Launch configured service URLs directly in your default web browser.");
         table.AddRow("[bold cyan]doctor[/]", "Run a pre-flight health check on host tools (.NET, Node, Python, Docker) & check port availability.");
@@ -684,6 +698,7 @@ public class Program
 
         AnsiConsole.MarkupLine("\n[bold]Quick Examples:[/] ");
         AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni dev[/]                 [grey]# Start entire stack with automatic port conflict remapping[/]");
+        AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni dev --split[/]         [grey]# Launch multi-pane split terminal TUI (side-by-side)[/]");
         AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni dev --open[/]          [grey]# Start entire stack and open in browser automatically[/]");
         AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni build[/]               [grey]# Compile/build all projects with error diagnostics[/]");
         AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni open[/]                [grey]# Open active frontend/API URLs in default browser[/]");
