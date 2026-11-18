@@ -34,6 +34,7 @@ public class Program
             "analyze" => RunAnalyze(),
             "doctor" => await RunDoctorAsync(),
             "dev" => await RunDevAsync(args.Skip(1).ToArray()),
+            "build" => await RunBuildAsync(args.Skip(1).ToArray()),
             "open" => RunOpen(),
             "run" => await RunTaskAsync(args.Length > 1 ? args[1] : null),
             _ => ShowHelp(command)
@@ -458,6 +459,139 @@ public class Program
         catch { }
     }
 
+    private record BuildTarget(string Name, string Command, string WorkingDirectory);
+
+    private static async Task<int> RunBuildAsync(string[]? buildArgs = null)
+    {
+        var currentDir = Directory.GetCurrentDirectory();
+        var configPath = Path.Combine(currentDir, "omni.yaml");
+        var config = OmniConfig.LoadFromFile(configPath);
+
+        var targets = new List<BuildTarget>();
+
+        if (config != null && config.Tasks.TryGetValue("build", out var buildTask) && buildTask.Commands.Any())
+        {
+            int idx = 1;
+            foreach (var cmd in buildTask.Commands)
+            {
+                targets.Add(new BuildTarget($"step-{idx++}", cmd, currentDir));
+            }
+        }
+        else
+        {
+            var detector = new WorkspaceDetector();
+            var projects = detector.Detect(currentDir);
+
+            if (!projects.Any())
+            {
+                AnsiConsole.MarkupLine("[red]Error:[/] No buildable projects found in this workspace.");
+                return 1;
+            }
+
+            foreach (var p in projects)
+            {
+                targets.Add(new BuildTarget(p.Name, p.RecommendedBuildCommand, p.Path));
+            }
+        }
+
+        AnsiConsole.MarkupLine($"[bold cyan]⚡ Omni Build:[/] Compiling [yellow]{targets.Count}[/] target(s)...\n");
+
+        var table = new Table().Border(TableBorder.Rounded);
+        table.AddColumn("[bold]Target[/]");
+        table.AddColumn("[bold]Build Command[/]");
+        table.AddColumn("[bold]Status[/]");
+        table.AddColumn("[bold]Duration[/]");
+
+        var results = new List<(BuildTarget Target, int ExitCode, TimeSpan Duration, List<string> Logs)>();
+        bool allPassed = true;
+
+        foreach (var target in targets)
+        {
+            var logs = new List<string>();
+            var sw = Stopwatch.StartNew();
+
+            AnsiConsole.MarkupLine($"[bold][[ {target.Name} ]][/] [grey]Executing: {Markup.Escape(target.Command)}[/]");
+
+            var exitCode = await ProcessRunner.RunShellCommandAsync(
+                target.Command,
+                target.WorkingDirectory,
+                output =>
+                {
+                    lock (logs)
+                    {
+                        if (logs.Count < 60)
+                            logs.Add(output.Line);
+                        else
+                        {
+                            logs.RemoveAt(0);
+                            logs.Add(output.Line);
+                        }
+                    }
+
+                    if (output.IsError)
+                    {
+                        AnsiConsole.MarkupLine($"  [red]{Markup.Escape(output.Line)}[/]");
+                    }
+                    else
+                    {
+                        AnsiConsole.MarkupLine($"  [grey]{Markup.Escape(output.Line)}[/]");
+                    }
+                }
+            );
+
+            sw.Stop();
+            results.Add((target, exitCode, sw.Elapsed, logs));
+
+            if (exitCode != 0)
+            {
+                allPassed = false;
+                var diag = FailureAnalyzer.Analyze(target.Name, exitCode, logs);
+                var panel = new Panel(new Markup(
+                    $"[bold red]Issue:[/] {Markup.Escape(diag.Summary)}\n\n" +
+                    $"[bold yellow]💡 Why it happened:[/] {Markup.Escape(diag.WhyItHappened)}\n\n" +
+                    $"[bold green]👉 Suggested Fix:[/] {Markup.Escape(diag.SuggestedRemediation)}"
+                ))
+                {
+                    Header = new PanelHeader($"[bold red] Build Error in '{target.Name}' (Exit code: {exitCode}) [/]"),
+                    Border = BoxBorder.Rounded,
+                    BorderStyle = new Style(Color.Red)
+                };
+
+                AnsiConsole.WriteLine();
+                AnsiConsole.Write(panel);
+                AnsiConsole.WriteLine();
+                break;
+            }
+        }
+
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[bold]Build Results Summary:[/]");
+
+        foreach (var r in results)
+        {
+            var statusStr = r.ExitCode == 0 ? "[bold green]✔ Succeeded[/]" : "[bold red]✘ Failed[/]";
+            table.AddRow(
+                $"[bold]{r.Target.Name}[/]",
+                $"[grey]{Markup.Escape(r.Target.Command)}[/]",
+                statusStr,
+                $"{r.Duration.TotalSeconds:F1}s"
+            );
+        }
+
+        AnsiConsole.Write(table);
+
+        if (allPassed)
+        {
+            AnsiConsole.MarkupLine("\n[bold green]✔ All targets built successfully![/]");
+            return 0;
+        }
+        else
+        {
+            AnsiConsole.MarkupLine("\n[bold red]✘ Build failed. Review diagnostic advice above.[/]");
+            return 1;
+        }
+    }
+
     private static async Task<int> RunTaskAsync(string? taskName)
     {
         if (string.IsNullOrEmpty(taskName))
@@ -537,6 +671,7 @@ public class Program
         table.AddColumn("Description");
 
         table.AddRow("[bold cyan]dev [[--open|-o]] [[--kill|-k]][/]", "Run all services concurrently. Auto-remaps occupied ports to free ones (or --kill to force stop).");
+        table.AddRow("[bold cyan]build[/]", "Build all workspace services or execute 'tasks.build' with smart failure diagnostics.");
         table.AddRow("[bold cyan]open[/]", "Launch configured service URLs directly in your default web browser.");
         table.AddRow("[bold cyan]doctor[/]", "Run a pre-flight health check on host tools (.NET, Node, Python, Docker) & check port availability.");
         table.AddRow("[bold cyan]analyze[/]", "Scan workspace, detect all technology stacks, and print component layout.");
@@ -550,6 +685,7 @@ public class Program
         AnsiConsole.MarkupLine("\n[bold]Quick Examples:[/] ");
         AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni dev[/]                 [grey]# Start entire stack with automatic port conflict remapping[/]");
         AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni dev --open[/]          [grey]# Start entire stack and open in browser automatically[/]");
+        AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni build[/]               [grey]# Compile/build all projects with error diagnostics[/]");
         AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni open[/]                [grey]# Open active frontend/API URLs in default browser[/]");
         AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni doctor[/]              [grey]# Check runtimes and verify port availability[/]");
         AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni run test[/]           [grey]# Execute all project test suites[/]");
