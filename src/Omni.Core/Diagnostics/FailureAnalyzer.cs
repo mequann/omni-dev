@@ -44,6 +44,18 @@ public class FailureAnalyzer
         @"(?:SyntaxError|ParseError): (.*)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    private static readonly Regex NextJsDuplicateRegex = new(
+        @"(?:Another next dev server is already running|run taskkill /PID\s+(\d+)\s+/F)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex NextJsPidExtractRegex = new(
+        @"(?:PID:\s+(\d+)|/PID\s+(\d+))",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex NpmMissingScriptRegex = new(
+        @"npm error Missing script:\s*""([^""]+)""",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private static readonly Regex EnvVarRegex = new(
         @"(?:KeyError: '([^']+)'|Environment variable '([^']+)' (?:is missing|not found)|Missing required environment variable:? ([^\s]+))",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -53,6 +65,22 @@ public class FailureAnalyzer
         var combinedText = string.Join("\n", lines);
 
         // 1. Check Port Collision
+        if (NextJsDuplicateRegex.IsMatch(combinedText))
+        {
+            var pidMatch = NextJsPidExtractRegex.Match(combinedText);
+            var pidStr = pidMatch.Success ? (pidMatch.Groups[1].Success ? pidMatch.Groups[1].Value : pidMatch.Groups[2].Value) : "unknown";
+
+            return new FailureDiagnosis(
+                serviceName,
+                exitCode,
+                DiagnosticCategory.PortCollision,
+                $"Port Collision: Next.js dev server already active (PID: {pidStr})",
+                $"Another Next.js development server is already running and bound to port 3000 (Process ID: {pidStr}).",
+                $"Terminate the lingering instance with 'taskkill /PID {pidStr} /F' on Windows (or 'kill -9 {pidStr}' on Unix), or configure a different port.",
+                pidStr
+            );
+        }
+
         if (PortConflictKeywordRegex.IsMatch(combinedText))
         {
             var portNumberMatch = PortNumberExtractRegex.Match(combinedText);
@@ -221,14 +249,34 @@ public class FailureAnalyzer
             );
         }
 
-        // 8. Fallback Unknown
-        var lastMeaningfulLine = lines.LastOrDefault(l => !string.IsNullOrWhiteSpace(l)) ?? "No error details captured";
+        // 8. Missing npm script check
+        var missingScriptMatch = NpmMissingScriptRegex.Match(combinedText);
+        if (missingScriptMatch.Success)
+        {
+            var scriptName = missingScriptMatch.Groups[1].Value;
+            return new FailureDiagnosis(
+                serviceName,
+                exitCode,
+                DiagnosticCategory.MissingDependency,
+                $"Missing npm script: '{scriptName}'",
+                $"The package.json for service '{serviceName}' does not define a script named '{scriptName}'.",
+                $"Add a '{scriptName}' script to package.json, or configure a custom dev command under services.{serviceName}.command in omni.yaml.",
+                scriptName
+            );
+        }
+
+        // 9. Fallback Unknown
+        var lastMeaningfulLine = lines
+            .Select(l => l.Trim())
+            .LastOrDefault(l => !string.IsNullOrWhiteSpace(l)) 
+            ?? "Service exited unexpectedly without standard output.";
+
         return new FailureDiagnosis(
             serviceName,
             exitCode,
             DiagnosticCategory.Unknown,
             $"Process Exited with Code {exitCode}",
-            $"The service terminated with non-zero exit code ({exitCode}). Last captured output:\n  \"{lastMeaningfulLine.Trim()}\"",
+            $"The service terminated with non-zero exit code ({exitCode}). Last captured output:\n  \"{lastMeaningfulLine}\"",
             "Review the service startup arguments, working directory, and logs above."
         );
     }

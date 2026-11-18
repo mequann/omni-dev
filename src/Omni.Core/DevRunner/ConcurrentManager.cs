@@ -9,12 +9,14 @@ public record ServiceSpec(
     string RawCommand,
     string WorkingDirectory,
     string Color = "cyan",
-    Dictionary<string, string>? Env = null
+    Dictionary<string, string>? Env = null,
+    int? Port = null
 );
 
 public class ConcurrentManager
 {
     private readonly List<ServiceSpec> _services = new();
+    public IReadOnlyList<ServiceSpec> Services => _services;
     private readonly ConcurrentDictionary<string, List<string>> _serviceBuffers = new();
     private const int MaxBufferLines = 50;
 

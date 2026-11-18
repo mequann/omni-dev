@@ -12,7 +12,7 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>omni</ToolCommandName>
     <PackageId>OmniDev.Cli</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>mequann</Authors>
     <Description>Universal Polyglot Dev Orchestrator &amp; Concurrent Runner with Smart Failure Diagnostics.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

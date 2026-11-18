@@ -87,4 +87,41 @@ public class FailureAnalyzerTests
         Assert.Equal(DiagnosticCategory.MissingRuntime, diagnosis.Category);
         Assert.Equal("cargo", diagnosis.OffendingDetail);
     }
+
+    [Fact]
+    public void Diagnoses_NextJs_Duplicate_Server()
+    {
+        var lines = new[]
+        {
+            "Another next dev server is already running.",
+            "- Local:        http://localhost:3000",
+            "- PID:          28872",
+            "or run taskkill /PID 28872 /F to stop it and start a new one."
+        };
+
+        var diagnosis = FailureAnalyzer.Analyze("web", 1, lines);
+
+        Assert.Equal(DiagnosticCategory.PortCollision, diagnosis.Category);
+        Assert.Equal("28872", diagnosis.OffendingDetail);
+        Assert.Contains("Next.js dev server already active", diagnosis.Summary);
+        Assert.Contains("taskkill /PID 28872 /F", diagnosis.SuggestedRemediation);
+    }
+
+    [Fact]
+    public void Diagnoses_Npm_Missing_Script()
+    {
+        var lines = new[]
+        {
+            "npm error Missing script: \"dev\"",
+            "npm error To see a list of scripts, run:",
+            "npm error   npm run"
+        };
+
+        var diagnosis = FailureAnalyzer.Analyze("root", 1, lines);
+
+        Assert.Equal(DiagnosticCategory.MissingDependency, diagnosis.Category);
+        Assert.Equal("dev", diagnosis.OffendingDetail);
+        Assert.Contains("Missing npm script: 'dev'", diagnosis.Summary);
+        Assert.Contains("Add a 'dev' script to package.json", diagnosis.SuggestedRemediation);
+    }
 }

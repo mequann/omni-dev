@@ -18,11 +18,72 @@ public class PreflightChecker
         {
             var ipGlobalProperties = IPGlobalProperties.GetIPGlobalProperties();
             var tcpListeners = ipGlobalProperties.GetActiveTcpListeners();
-            return tcpListeners.Any(endpoint => endpoint.Port == port);
+            if (tcpListeners.Any(endpoint => endpoint.Port == port))
+                return true;
+
+            var activeConnections = ipGlobalProperties.GetActiveTcpConnections();
+            if (activeConnections.Any(c => c.LocalEndPoint.Port == port))
+                return true;
+
+            return false;
         }
         catch
         {
             return false;
+        }
+    }
+
+    public static int FindNextAvailablePort(int startPort, int maxScan = 50)
+    {
+        for (int p = startPort; p < startPort + maxScan; p++)
+        {
+            if (!IsPortInUse(p))
+                return p;
+        }
+        return startPort;
+    }
+
+    public static bool TryKillProcessOnPort(int port)
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "powershell.exe",
+                    Arguments = $"-NoProfile -Command \"(Get-NetTCPConnection -LocalPort {port} -ErrorAction SilentlyContinue).OwningProcess | ForEach-Object {{ Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }}\"",
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                };
+                using var p = Process.Start(psi);
+                p?.WaitForExit(3000);
+                return !IsPortInUse(port);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        else
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "/bin/sh",
+                    Arguments = $"-c \"lsof -ti:{port} | xargs kill -9\"",
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                };
+                using var p = Process.Start(psi);
+                p?.WaitForExit(3000);
+                return !IsPortInUse(port);
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 

@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Spectre.Console;
 using Omni.Core.Config;
 using Omni.Core.Detection;
@@ -31,7 +33,8 @@ public class Program
             "init" => RunInit(),
             "analyze" => RunAnalyze(),
             "doctor" => await RunDoctorAsync(),
-            "dev" => await RunDevAsync(),
+            "dev" => await RunDevAsync(args.Skip(1).ToArray()),
+            "open" => RunOpen(),
             "run" => await RunTaskAsync(args.Length > 1 ? args[1] : null),
             _ => ShowHelp(command)
         };
@@ -200,8 +203,12 @@ public class Program
         return 0;
     }
 
-    private static async Task<int> RunDevAsync()
+    private static async Task<int> RunDevAsync(string[]? devArgs = null)
     {
+        var argsList = devArgs?.ToList() ?? new List<string>();
+        bool openInBrowser = argsList.Contains("--open") || argsList.Contains("-o");
+        bool autoKill = argsList.Contains("--kill") || argsList.Contains("-k");
+
         var currentDir = Directory.GetCurrentDirectory();
         var configPath = Path.Combine(currentDir, "omni.yaml");
         var config = OmniConfig.LoadFromFile(configPath);
@@ -211,16 +218,6 @@ public class Program
 
         if (config != null && config.Services.Any())
         {
-            // Pre-flight check on declared ports
-            foreach (var (name, svc) in config.Services)
-            {
-                if (svc.Port.HasValue && PreflightChecker.IsPortInUse(svc.Port.Value))
-                {
-                    AnsiConsole.MarkupLine(
-                        $"[bold yellow]⚠ Preflight Warning:[/] Port [red]{svc.Port.Value}[/] for service '[cyan]{name}[/]' is already in use by another process!");
-                }
-            }
-
             int idx = 0;
             foreach (var (name, svc) in config.Services)
             {
@@ -228,12 +225,37 @@ public class Program
                     ? currentDir 
                     : Path.GetFullPath(Path.Combine(currentDir, svc.Dir));
 
+                var env = new Dictionary<string, string>(svc.Env ?? new());
+
+                int? effectivePort = svc.Port;
+                if (effectivePort.HasValue && PreflightChecker.IsPortInUse(effectivePort.Value))
+                {
+                    if (autoKill && PreflightChecker.TryKillProcessOnPort(effectivePort.Value))
+                    {
+                        AnsiConsole.MarkupLine($"[bold yellow]🔪 Auto-killed conflicting process on port [red]{effectivePort.Value}[/] for service '[cyan]{name}[/]'[/]");
+                    }
+                    else
+                    {
+                        var freePort = PreflightChecker.FindNextAvailablePort(effectivePort.Value);
+                        AnsiConsole.MarkupLine(
+                            $"[bold yellow]⚡ Port {effectivePort.Value} for '{name}' is occupied. Automatically remapping to free port [bold green]{freePort}[/]![/]");
+                        effectivePort = freePort;
+                    }
+                }
+
+                if (effectivePort.HasValue)
+                {
+                    env["PORT"] = effectivePort.Value.ToString();
+                    env["ASPNETCORE_URLS"] = $"http://localhost:{effectivePort.Value}";
+                }
+
                 manager.RegisterService(new ServiceSpec(
                     name,
                     svc.Command,
                     workDir,
                     svc.Color ?? colors[idx % colors.Length],
-                    svc.Env
+                    env,
+                    effectivePort
                 ));
                 idx++;
             }
@@ -252,13 +274,85 @@ public class Program
             for (int i = 0; i < projects.Count; i++)
             {
                 var p = projects[i];
+                int? defaultPort = p.Kind switch
+                {
+                    ToolchainKind.Node => 3000 + i,
+                    ToolchainKind.DotNet => 5000 + i,
+                    ToolchainKind.Python => 8000 + i,
+                    _ => null
+                };
+
+                var env = new Dictionary<string, string>();
+                if (defaultPort.HasValue && PreflightChecker.IsPortInUse(defaultPort.Value))
+                {
+                    if (autoKill && PreflightChecker.TryKillProcessOnPort(defaultPort.Value))
+                    {
+                        AnsiConsole.MarkupLine($"[bold yellow]🔪 Auto-killed conflicting process on port [red]{defaultPort.Value}[/] for service '[cyan]{p.Name}[/]'[/]");
+                    }
+                    else
+                    {
+                        var freePort = PreflightChecker.FindNextAvailablePort(defaultPort.Value);
+                        AnsiConsole.MarkupLine($"[bold yellow]⚡ Port {defaultPort.Value} for '{p.Name}' is occupied. Remapping to [bold green]{freePort}[/]![/]");
+                        defaultPort = freePort;
+                    }
+                }
+
+                if (defaultPort.HasValue)
+                {
+                    env["PORT"] = defaultPort.Value.ToString();
+                    env["ASPNETCORE_URLS"] = $"http://localhost:{defaultPort.Value}";
+                }
+
                 manager.RegisterService(new ServiceSpec(
                     p.Name,
                     p.RecommendedDevCommand,
                     p.Path,
-                    colors[i % colors.Length]
+                    colors[i % colors.Length],
+                    env,
+                    defaultPort
                 ));
             }
+        }
+
+        // Render Service URLs Table Banner
+        var urlTable = new Table().Border(TableBorder.Rounded);
+        urlTable.AddColumn("[bold]Service[/]");
+        urlTable.AddColumn("[bold]Local URL[/]");
+        urlTable.AddColumn("[bold]Directory[/]");
+        urlTable.AddColumn("[bold]Dev Command[/]");
+
+        foreach (var svc in manager.Services)
+        {
+            string urlStr = svc.Port.HasValue ? $"http://localhost:{svc.Port.Value}" : "-";
+            urlTable.AddRow(
+                $"[bold {svc.Color}]{svc.Name}[/]",
+                svc.Port.HasValue ? $"[bold cyan underline]{urlStr}[/]" : "[grey]Internal / Daemon[/]",
+                $"[white]{Path.GetFileName(svc.WorkingDirectory)}[/]",
+                $"[grey]{Markup.Escape(svc.RawCommand)}[/]"
+            );
+        }
+
+        AnsiConsole.MarkupLine("[bold green]🚀 Services Ready & Starting Parallel Execution:[/]");
+        AnsiConsole.Write(urlTable);
+
+        // Print tip for swagger/api docs if an api service exists
+        var apiSvc = manager.Services.FirstOrDefault(s => s.Name.Contains("api", StringComparison.OrdinalIgnoreCase) && s.Port.HasValue);
+        if (apiSvc != null && apiSvc.Port.HasValue)
+        {
+            AnsiConsole.MarkupLine($"[grey]📖 API Swagger Docs:[/] [cyan underline]http://localhost:{apiSvc.Port.Value}/api/docs[/] [grey]or[/] [cyan underline]http://localhost:{apiSvc.Port.Value}/swagger[/]");
+        }
+        AnsiConsole.WriteLine();
+
+        if (openInBrowser)
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(2500);
+                foreach (var svc in manager.Services.Where(s => s.Port.HasValue))
+                {
+                    TryOpenBrowser($"http://localhost:{svc.Port!.Value}");
+                }
+            });
         }
 
         using var cts = new CancellationTokenSource();
@@ -269,7 +363,7 @@ public class Program
             cts.Cancel();
         };
 
-        AnsiConsole.MarkupLine("[bold]Starting services in parallel... (Press [red]Ctrl+C[/] to stop)[/]\n");
+        AnsiConsole.MarkupLine("[bold]Streaming logs... (Press [red]Ctrl+C[/] to stop)[/]\n");
 
         await manager.RunAllAsync(
             logCallback: (serviceName, line, isError) =>
@@ -305,6 +399,63 @@ public class Program
         );
 
         return 0;
+    }
+
+    private static int RunOpen()
+    {
+        var currentDir = Directory.GetCurrentDirectory();
+        var configPath = Path.Combine(currentDir, "omni.yaml");
+        var config = OmniConfig.LoadFromFile(configPath);
+
+        if (config == null || !config.Services.Any())
+        {
+            AnsiConsole.MarkupLine("[red]No omni.yaml found or no services configured.[/]");
+            return 1;
+        }
+
+        int opened = 0;
+        foreach (var (name, svc) in config.Services)
+        {
+            if (svc.Port.HasValue)
+            {
+                var url = $"http://localhost:{svc.Port.Value}";
+                AnsiConsole.MarkupLine($"[green]Opening[/] [cyan]{name}[/] at [cyan underline]{url}[/]");
+                TryOpenBrowser(url);
+                opened++;
+            }
+        }
+
+        if (opened == 0)
+        {
+            AnsiConsole.MarkupLine("[yellow]No services have a declared port to open.[/]");
+        }
+        return 0;
+    }
+
+    private static void TryOpenBrowser(string url)
+    {
+        try
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = "cmd.exe",
+                    Arguments = $"/c start {url}",
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                });
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                Process.Start("open", url);
+            }
+            else
+            {
+                Process.Start("xdg-open", url);
+            }
+        }
+        catch { }
     }
 
     private static async Task<int> RunTaskAsync(string? taskName)
@@ -385,7 +536,8 @@ public class Program
         table.AddColumn("Command");
         table.AddColumn("Description");
 
-        table.AddRow("[bold cyan]dev[/]", "Run all discovered or configured services concurrently with smart failure diagnostics.");
+        table.AddRow("[bold cyan]dev [[--open|-o]] [[--kill|-k]][/]", "Run all services concurrently. Auto-remaps occupied ports to free ones (or --kill to force stop).");
+        table.AddRow("[bold cyan]open[/]", "Launch configured service URLs directly in your default web browser.");
         table.AddRow("[bold cyan]doctor[/]", "Run a pre-flight health check on host tools (.NET, Node, Python, Docker) & check port availability.");
         table.AddRow("[bold cyan]analyze[/]", "Scan workspace, detect all technology stacks, and print component layout.");
         table.AddRow("[bold cyan]init[/]", "Create an annotated [yellow]omni.yaml[/] template in the current directory.");
@@ -396,8 +548,10 @@ public class Program
         AnsiConsole.Write(table);
 
         AnsiConsole.MarkupLine("\n[bold]Quick Examples:[/] ");
-        AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni dev[/]                [grey]# Start entire stack concurrently[/]");
-        AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni doctor[/]             [grey]# Check runtimes and verify no port conflicts[/]");
+        AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni dev[/]                 [grey]# Start entire stack with automatic port conflict remapping[/]");
+        AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni dev --open[/]          [grey]# Start entire stack and open in browser automatically[/]");
+        AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni open[/]                [grey]# Open active frontend/API URLs in default browser[/]");
+        AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni doctor[/]              [grey]# Check runtimes and verify port availability[/]");
         AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni run test[/]           [grey]# Execute all project test suites[/]");
         AnsiConsole.MarkupLine("  [grey]$[/] [cyan]omni init[/]               [grey]# Generate custom omni.yaml[/]");
 

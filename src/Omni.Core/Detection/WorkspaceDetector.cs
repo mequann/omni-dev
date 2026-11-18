@@ -37,10 +37,7 @@ public class WorkspaceDetector
         if (!Directory.Exists(rootDirectory))
             return results;
 
-        // 1. Root Level Checks
-        CheckDirectory(rootDirectory, isRoot: true, results);
-
-        // 2. Scan subdirectories (1 level deep)
+        // 1. Scan subdirectories (up to 2 levels deep for monorepos)
         var subDirs = Directory.GetDirectories(rootDirectory);
         foreach (var dir in subDirs)
         {
@@ -48,10 +45,78 @@ public class WorkspaceDetector
             if (IgnoredDirectories.Contains(dirName))
                 continue;
 
+            int countBefore = results.Count;
             CheckDirectory(dir, isRoot: false, results);
+
+            // If this directory was not a project itself (e.g. apps, packages, services), scan its children
+            if (results.Count == countBefore)
+            {
+                try
+                {
+                    var nestedDirs = Directory.GetDirectories(dir);
+                    foreach (var nested in nestedDirs)
+                    {
+                        var nestedName = Path.GetFileName(nested);
+                        if (IgnoredDirectories.Contains(nestedName))
+                            continue;
+
+                        CheckDirectory(nested, isRoot: false, results);
+                    }
+                }
+                catch { }
+            }
+        }
+
+        // 2. Root Level Checks
+        var rootProjects = new List<DiscoveredProject>();
+        CheckDirectory(rootDirectory, isRoot: true, rootProjects);
+
+        if (rootProjects.Count > 0)
+        {
+            var rootProj = rootProjects[0];
+            // If subprojects were found, only add root if root has its own direct dev script (not just a monorepo container)
+            if (results.Count == 0)
+            {
+                results.Add(rootProj);
+            }
+            else if (rootProj.Kind != ToolchainKind.Node || HasDirectDevScript(rootDirectory))
+            {
+                results.Insert(0, rootProj);
+            }
         }
 
         return results;
+    }
+
+    private static (string devCmd, string buildCmd) ResolveNodeScripts(string pkgJsonPath)
+    {
+        try
+        {
+            var text = File.ReadAllText(pkgJsonPath);
+            if (text.Contains("\"dev\":") || text.Contains("\"dev\" :"))
+                return ("npm run dev", "npm run build");
+            if (text.Contains("\"start:dev\":") || text.Contains("\"start:dev\" :"))
+                return ("npm run start:dev", "npm run build");
+            if (text.Contains("\"start\":") || text.Contains("\"start\" :"))
+                return ("npm start", "npm run build");
+        }
+        catch { }
+        return ("npm run dev", "npm run build");
+    }
+
+    private static bool HasDirectDevScript(string rootDir)
+    {
+        try
+        {
+            var pkgJson = Path.Combine(rootDir, "package.json");
+            if (!File.Exists(pkgJson)) return false;
+            var text = File.ReadAllText(pkgJson);
+            return text.Contains("\"dev\":") || text.Contains("\"dev\" :");
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private void CheckDirectory(string dir, bool isRoot, List<DiscoveredProject> results)
@@ -73,9 +138,11 @@ public class WorkspaceDetector
         }
 
         // Node.js / Frontend
-        if (File.Exists(Path.Combine(dir, "package.json")))
+        var pkgJson = Path.Combine(dir, "package.json");
+        if (File.Exists(pkgJson))
         {
-            results.Add(new DiscoveredProject(name, ToolchainKind.Node, dir, "npm run dev", "npm run build"));
+            var (devCmd, buildCmd) = ResolveNodeScripts(pkgJson);
+            results.Add(new DiscoveredProject(name, ToolchainKind.Node, dir, devCmd, buildCmd));
             return;
         }
 

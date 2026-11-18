@@ -1,6 +1,6 @@
 {
   "name": "omni-dev",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Universal Polyglot Dev Orchestrator & Intelligent Observability Engine",
   "main": "bin/omni.js",
   "bin": {
