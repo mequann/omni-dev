@@ -8,6 +8,7 @@ public enum DiagnosticCategory
     MissingRuntime,
     BuildOrSyntaxError,
     EnvironmentMissing,
+    DatabaseError,
     Unknown
 }
 

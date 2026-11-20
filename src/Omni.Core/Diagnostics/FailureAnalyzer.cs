@@ -60,6 +60,22 @@ public class FailureAnalyzer
         @"(?:KeyError: '([^']+)'|Environment variable '([^']+)' (?:is missing|not found)|Missing required environment variable:? ([^\s]+))",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    private static readonly Regex DbUniqueConstraintRegex = new(
+        @"(?:duplicate key value violates unique constraint ""(?<constraint>[^""]+)""|Unique constraint failed on the fields?: \((?<fields>[^)]+)\)|UNIQUE constraint failed: (?<fields>[^\r\n]+))",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex DbUniqueDetailRegex = new(
+        @"DETAIL:\s*Key \((?<field>[^)]+)\)=\((?<val>[^)]+)\) already exists",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex DbExclusionConstraintRegex = new(
+        @"conflicting key value violates exclusion constraint ""(?<constraint>[^""]+)""",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex DbForeignKeyRegex = new(
+        @"(?:violates foreign key constraint ""(?<constraint>[^""]+)""|FOREIGN KEY constraint failed)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     private static (string host, string port) ExtractConnectionRefusedTarget(string text)
     {
         var m1 = Regex.Match(text, @"(?:connect\s+ECONNREFUSED|refused|dial tcp)\s+(?:http:\/\/)?([0-9a-zA-Z\.\-]+):(\d{2,5})", RegexOptions.IgnoreCase);
@@ -135,6 +151,74 @@ public class FailureAnalyzer
                 $"Run 'npm install' or 'pnpm install' in the service directory to install dependencies.",
                 module,
                 IsLive: true
+            );
+        }
+
+        // Live Database Constraint Violations
+        var dbDiag = TryAnalyzeDatabase(serviceName, 0, context, isLive: true);
+        if (dbDiag != null)
+        {
+            return dbDiag;
+        }
+
+        return null;
+    }
+
+    private static FailureDiagnosis? TryAnalyzeDatabase(string serviceName, int exitCode, string text, bool isLive)
+    {
+        // Unique Constraint Violation
+        var uniqueMatch = DbUniqueConstraintRegex.Match(text);
+        if (uniqueMatch.Success)
+        {
+            var constraintName = uniqueMatch.Groups["constraint"].Success ? uniqueMatch.Groups["constraint"].Value : uniqueMatch.Groups["fields"].Value;
+            var detailMatch = DbUniqueDetailRegex.Match(text);
+            string detailText = detailMatch.Success 
+                ? $"Field '{detailMatch.Groups["field"].Value}' with value '{detailMatch.Groups["val"].Value}'" 
+                : $"Constraint '{constraintName}'";
+
+            return new FailureDiagnosis(
+                serviceName,
+                exitCode,
+                DiagnosticCategory.DatabaseError,
+                $"Database Unique Constraint Violation: duplicate key on {constraintName}",
+                $"An insert or update attempted to write duplicate values ({detailText}), violating unique database constraint '{constraintName}'.",
+                "Ensure unique values before writing, use 'upsert' instead of direct 'insert' in seed scripts, or handle unique constraint violations in API controllers.",
+                constraintName,
+                isLive
+            );
+        }
+
+        // Exclusion Constraint Violation (e.g. overlapping timetable or leave intervals)
+        var exclMatch = DbExclusionConstraintRegex.Match(text);
+        if (exclMatch.Success)
+        {
+            var constraintName = exclMatch.Groups["constraint"].Value;
+            return new FailureDiagnosis(
+                serviceName,
+                exitCode,
+                DiagnosticCategory.DatabaseError,
+                $"Database Exclusion Constraint Violation: overlapping range in {constraintName}",
+                $"A row with overlapping schedule, date range, or interval was inserted, violating exclusion constraint '{constraintName}'.",
+                "Check for overlapping date or time ranges for the same entity before inserting or updating records.",
+                constraintName,
+                isLive
+            );
+        }
+
+        // Foreign Key Constraint Violation
+        var fkMatch = DbForeignKeyRegex.Match(text);
+        if (fkMatch.Success)
+        {
+            var constraintName = fkMatch.Groups["constraint"].Success ? fkMatch.Groups["constraint"].Value : "foreign_key";
+            return new FailureDiagnosis(
+                serviceName,
+                exitCode,
+                DiagnosticCategory.DatabaseError,
+                $"Database Foreign Key Violation: {constraintName}",
+                $"An operation failed because a referenced parent record does not exist, or a parent record cannot be deleted while child records still reference it.",
+                "Ensure parent records exist before inserting, or delete/reassign dependent child records (or enable cascade delete: onDelete: Cascade).",
+                constraintName,
+                isLive
             );
         }
 
@@ -350,7 +434,14 @@ public class FailureAnalyzer
             );
         }
 
-        // 9. Fallback Unknown
+        // 9. Database Constraint Violation (PostgreSQL, Prisma, SQLite)
+        var dbDiag = TryAnalyzeDatabase(serviceName, exitCode, combinedText, isLive: false);
+        if (dbDiag != null)
+        {
+            return dbDiag;
+        }
+
+        // 10. Fallback Unknown
         var lastMeaningfulLine = lines
             .Select(l => l.Trim())
             .LastOrDefault(l => !string.IsNullOrWhiteSpace(l)) 

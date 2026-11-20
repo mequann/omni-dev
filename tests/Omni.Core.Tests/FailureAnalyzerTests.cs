@@ -146,4 +146,58 @@ public class FailureAnalyzerTests
         Assert.Contains("Unable to reach 127.0.0.1:4000", diagnosis.Summary);
         Assert.Contains("api", diagnosis.SuggestedRemediation);
     }
+
+    [Fact]
+    public void Diagnoses_Postgres_Unique_Constraint_Violation()
+    {
+        var recentLines = new[]
+        {
+            "2026-11-14 10:44:18.422 | 2026-11-14 07:44:18.421 UTC [1242] ERROR:  duplicate key value violates unique constraint \"students_admissionNo_key\"",
+            "2026-11-14 10:44:18.423 | 2026-11-14 07:44:18.421 UTC [1242] DETAIL:  Key (\"admissionNo\")=(ADM-00108) already exists."
+        };
+        var line = "2026-11-14 10:44:18.423 | 2026-11-14 07:44:18.421 UTC [1242] STATEMENT:  INSERT INTO \"public\".\"students\"...";
+
+        var diagnosis = FailureAnalyzer.TryAnalyzeLive("postgres", line, recentLines);
+
+        Assert.NotNull(diagnosis);
+        Assert.Equal(DiagnosticCategory.DatabaseError, diagnosis.Category);
+        Assert.Equal("students_admissionNo_key", diagnosis.OffendingDetail);
+        Assert.Contains("duplicate key", diagnosis.Summary);
+        Assert.Contains("ADM-00108", diagnosis.WhyItHappened);
+        Assert.Contains("upsert", diagnosis.SuggestedRemediation);
+    }
+
+    [Fact]
+    public void Diagnoses_Postgres_Exclusion_Constraint_Violation()
+    {
+        var lines = new[]
+        {
+            "ERROR:  conflicting key value violates exclusion constraint \"timetable_slots_no_overlap\"",
+            "DETAIL:  Key (sectionId, dayOfWeek, timeRange)=... conflicts with existing key."
+        };
+
+        var diagnosis = FailureAnalyzer.Analyze("api", 1, lines);
+
+        Assert.Equal(DiagnosticCategory.DatabaseError, diagnosis.Category);
+        Assert.Equal("timetable_slots_no_overlap", diagnosis.OffendingDetail);
+        Assert.Contains("Exclusion Constraint Violation", diagnosis.Summary);
+        Assert.Contains("overlapping", diagnosis.SuggestedRemediation);
+    }
+
+    [Fact]
+    public void Diagnoses_Postgres_Foreign_Key_Constraint_Violation()
+    {
+        var lines = new[]
+        {
+            "ERROR: update or delete on table \"students\" violates foreign key constraint \"fee_invoices_studentId_fkey\" on table \"fee_invoices\"",
+            "DETAIL: Key (id)=(1234) is still referenced from table \"fee_invoices\"."
+        };
+
+        var diagnosis = FailureAnalyzer.Analyze("api", 1, lines);
+
+        Assert.Equal(DiagnosticCategory.DatabaseError, diagnosis.Category);
+        Assert.Equal("fee_invoices_studentId_fkey", diagnosis.OffendingDetail);
+        Assert.Contains("Foreign Key Violation", diagnosis.Summary);
+        Assert.Contains("cascade delete", diagnosis.SuggestedRemediation);
+    }
 }

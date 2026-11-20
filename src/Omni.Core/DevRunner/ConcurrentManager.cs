@@ -106,7 +106,7 @@ public class ConcurrentManager
                     logCallback(svc.Name, output.Line, output.IsError);
 
                     // Real-time live error diagnostics while process is running
-                    if (diagnosisCallback != null && (output.IsError || output.Line.Contains("error", StringComparison.OrdinalIgnoreCase) || output.Line.Contains("ECONNREFUSED") || output.Line.Contains("EADDRINUSE")))
+                    if (diagnosisCallback != null && (output.IsError || output.Line.Contains("error", StringComparison.OrdinalIgnoreCase) || output.Line.Contains("ECONNREFUSED") || output.Line.Contains("EADDRINUSE") || output.Line.Contains("violates", StringComparison.OrdinalIgnoreCase)))
                     {
                         var liveDiag = FailureAnalyzer.TryAnalyzeLive(svc.Name, output.Line, currentBufferSnapshot);
                         if (liveDiag != null)
