@@ -395,15 +395,19 @@ public class Program
             },
             diagnosisCallback: diag =>
             {
+                var title = diag.IsLive 
+                    ? $"[bold yellow] ⚠ Live Runtime Diagnostic Alert in '{diag.ServiceName}' [/]"
+                    : $"[bold red] Diagnostic Failure in '{diag.ServiceName}' (Exit code: {diag.ExitCode}) [/]";
+
                 var panel = new Panel(new Markup(
-                    $"[bold red]Issue:[/] {Markup.Escape(diag.Summary)}\n\n" +
+                    $"[bold {(diag.IsLive ? "yellow" : "red")}]Issue:[/] {Markup.Escape(diag.Summary)}\n\n" +
                     $"[bold yellow]💡 Why it happened:[/] {Markup.Escape(diag.WhyItHappened)}\n\n" +
                     $"[bold green]👉 Suggested Fix:[/] {Markup.Escape(diag.SuggestedRemediation)}"
                 ))
                 {
-                    Header = new PanelHeader($"[bold red] Diagnostic Failure in '{diag.ServiceName}' (Exit code: {diag.ExitCode}) [/]"),
+                    Header = new PanelHeader(title),
                     Border = BoxBorder.Rounded,
-                    BorderStyle = new Style(Color.Red)
+                    BorderStyle = new Style(diag.IsLive ? Color.Yellow : Color.Red)
                 };
 
                 AnsiConsole.WriteLine();

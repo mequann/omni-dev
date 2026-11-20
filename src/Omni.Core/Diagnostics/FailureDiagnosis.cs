@@ -18,6 +18,7 @@ public record FailureDiagnosis(
     string Summary,
     string WhyItHappened,
     string SuggestedRemediation,
-    string? OffendingDetail = null
+    string? OffendingDetail = null,
+    bool IsLive = false
 );
 

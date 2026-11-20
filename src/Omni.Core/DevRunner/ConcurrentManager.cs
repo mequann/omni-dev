@@ -28,6 +28,7 @@ public class ConcurrentManager
     private readonly ConcurrentDictionary<string, List<string>> _serviceBuffers = new();
     private readonly ConcurrentDictionary<string, ServiceState> _serviceStates = new();
     private readonly ConcurrentDictionary<string, int> _exitCodes = new();
+    private readonly ConcurrentDictionary<string, DateTime> _lastLiveDiagnosisTime = new();
     private const int MaxBufferLines = 60;
 
     public void RegisterService(ServiceSpec spec)
@@ -83,6 +84,7 @@ public class ConcurrentManager
                 {
                     _serviceStates[svc.Name] = ServiceState.Running;
 
+                    List<string> currentBufferSnapshot;
                     // Maintain line buffer for diagnostics and TUI
                     if (_serviceBuffers.TryGetValue(svc.Name, out var buffer))
                     {
@@ -93,10 +95,31 @@ public class ConcurrentManager
                                 buffer.RemoveAt(0);
                             }
                             buffer.Add(output.Line);
+                            currentBufferSnapshot = buffer.ToList();
                         }
+                    }
+                    else
+                    {
+                        currentBufferSnapshot = new List<string> { output.Line };
                     }
 
                     logCallback(svc.Name, output.Line, output.IsError);
+
+                    // Real-time live error diagnostics while process is running
+                    if (diagnosisCallback != null && (output.IsError || output.Line.Contains("error", StringComparison.OrdinalIgnoreCase) || output.Line.Contains("ECONNREFUSED") || output.Line.Contains("EADDRINUSE")))
+                    {
+                        var liveDiag = FailureAnalyzer.TryAnalyzeLive(svc.Name, output.Line, currentBufferSnapshot);
+                        if (liveDiag != null)
+                        {
+                            var dedupeKey = $"{svc.Name}:{liveDiag.Category}:{liveDiag.OffendingDetail}";
+                            var now = DateTime.UtcNow;
+                            if (!_lastLiveDiagnosisTime.TryGetValue(dedupeKey, out var lastAlert) || (now - lastAlert).TotalSeconds >= 10)
+                            {
+                                _lastLiveDiagnosisTime[dedupeKey] = now;
+                                diagnosisCallback(liveDiag);
+                            }
+                        }
+                    }
                 },
                 svc.Env,
                 cancellationToken

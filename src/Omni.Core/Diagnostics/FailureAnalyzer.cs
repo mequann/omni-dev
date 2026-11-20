@@ -60,6 +60,87 @@ public class FailureAnalyzer
         @"(?:KeyError: '([^']+)'|Environment variable '([^']+)' (?:is missing|not found)|Missing required environment variable:? ([^\s]+))",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    private static (string host, string port) ExtractConnectionRefusedTarget(string text)
+    {
+        var m1 = Regex.Match(text, @"(?:connect\s+ECONNREFUSED|refused|dial tcp)\s+(?:http:\/\/)?([0-9a-zA-Z\.\-]+):(\d{2,5})", RegexOptions.IgnoreCase);
+        if (m1.Success)
+            return (m1.Groups[1].Value, m1.Groups[2].Value);
+
+        var m2 = Regex.Match(text, @"address:\s*'([^']+)',\s*port:\s*(\d{2,5})", RegexOptions.IgnoreCase);
+        if (m2.Success)
+            return (m2.Groups[1].Value, m2.Groups[2].Value);
+
+        var m3 = Regex.Match(text, @"(?:http:\/\/)([0-9a-zA-Z\.\-]+):(\d{2,5})", RegexOptions.IgnoreCase);
+        if (m3.Success)
+            return (m3.Groups[1].Value, m3.Groups[2].Value);
+
+        return ("unknown host", "unknown port");
+    }
+
+    public static FailureDiagnosis? TryAnalyzeLive(string serviceName, string line, IReadOnlyList<string> recentLines)
+    {
+        var context = line;
+        if (recentLines != null && recentLines.Count > 0)
+        {
+            context = string.Join("\n", recentLines.TakeLast(6)) + "\n" + line;
+        }
+
+        // Live Connection Refused (e.g. Next.js proxy ECONNREFUSED)
+        if (ConnectionRefusedRegex.IsMatch(context))
+        {
+            var (host, port) = ExtractConnectionRefusedTarget(context);
+            string targetDesc = port != "unknown port" ? $"{host}:{port}" : host;
+
+            return new FailureDiagnosis(
+                serviceName,
+                0,
+                DiagnosticCategory.ConnectionRefused,
+                $"Upstream Connection Refused: Unable to reach {targetDesc}",
+                $"Service '{serviceName}' attempted to make a network call or proxy requests to {targetDesc}, but nothing is listening on port {port}.",
+                $"Check if the backend service ('api') is still compiling/starting up, or verify that the backend's port matches {port} in your environment or proxy settings.",
+                targetDesc,
+                IsLive: true
+            );
+        }
+
+        // Live Port Collision (dev server tried to bind port during runtime)
+        if (PortConflictKeywordRegex.IsMatch(context))
+        {
+            var portNumberMatch = PortNumberExtractRegex.Match(context);
+            var portStr = portNumberMatch.Success ? portNumberMatch.Groups[1].Value : "unknown";
+
+            return new FailureDiagnosis(
+                serviceName,
+                0,
+                DiagnosticCategory.PortCollision,
+                $"Port Collision: Port {portStr} is already occupied",
+                $"Service attempted to listen on port {portStr}, but another running application or orphan process is already bound to it.",
+                $"Terminate the process using port {portStr} or change the port in omni.yaml.",
+                portStr,
+                IsLive: true
+            );
+        }
+
+        // Live Missing Dependency
+        var nodeMatch = NodeModuleRegex.Match(context);
+        if (nodeMatch.Success)
+        {
+            var module = nodeMatch.Groups[1].Value;
+            return new FailureDiagnosis(
+                serviceName,
+                0,
+                DiagnosticCategory.MissingDependency,
+                $"Missing Node Module: '{module}'",
+                $"The application could not find module '{module}'. The package dependencies have not been installed or were newly added.",
+                $"Run 'npm install' or 'pnpm install' in the service directory to install dependencies.",
+                module,
+                IsLive: true
+            );
+        }
+
+        return null;
+    }
+
     public static FailureDiagnosis Analyze(string serviceName, int exitCode, IReadOnlyList<string> lines)
     {
         var combinedText = string.Join("\n", lines);
@@ -142,16 +223,20 @@ public class FailureAnalyzer
             );
         }
 
-        // 3. Check Connection Refused (DB, Redis, etc.)
+        // 3. Check Connection Refused (DB, Redis, API proxy, etc.)
         if (ConnectionRefusedRegex.IsMatch(combinedText))
         {
+            var (host, port) = ExtractConnectionRefusedTarget(combinedText);
+            string targetDesc = port != "unknown port" ? $"{host}:{port}" : host;
+
             return new FailureDiagnosis(
                 serviceName,
                 exitCode,
                 DiagnosticCategory.ConnectionRefused,
-                "Upstream Connection Refused",
-                "The service failed to connect to an external resource (e.g., database, cache, or another local service).",
-                "Ensure your backing services (PostgreSQL, Redis, RabbitMQ, Docker containers) are running and accessible on their expected host and port."
+                $"Upstream Connection Refused: Unable to reach {targetDesc}",
+                $"The service failed to connect to {targetDesc}. No active process is listening on port {port}.",
+                $"Ensure your backing service, backend API, or database is running and accessible on port {port}.",
+                targetDesc
             );
         }
 

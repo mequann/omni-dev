@@ -257,14 +257,13 @@ Detailed guides and specifications:
 * ⚙️ **[`omni.yaml` Configuration Guide](docs/configuration-guide.md)** – Complete reference for ports, environment variables, dependencies, and custom tasks.
 * 🔍 **[Failure Diagnostics & Observability](docs/failure-diagnostics.md)** – In-depth guide on crash pattern recognition, port conflicts, and root-cause explanations.
 * 📐 **[Architecture & Design](docs/architecture.md)** – Detailed breakdown of `Omni.Core`, `Omni.Cli`, and process lifecycle management.
-* 🚢 **[Deployment Guide](DEPLOYMENT.md)** – Step-by-step instructions for publishing standalone binaries, NuGet, and npm.
 * 🤝 **[Contributing Guide](CONTRIBUTING.md)** – How to build from source, add language detectors, and write diagnostic rules.
 
 ---
 
 ## 🚢 Publishing & Deployment
 
-Omni is set up for multi-channel publishing. See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the complete guide:
+Omni is configured for multi-channel publishing (see local `DEPLOYMENT.md` for maintainer publishing steps):
 
 1. **Standalone Binaries (GitHub Releases)**: Auto-built for Windows, Linux, and macOS upon pushing a version tag (`git push origin v0.2.0`).
 2. **NuGet.org**: Published via GitHub Actions using **Trusted Publishing (OIDC)** or API key (`dotnet tool install -g OmniDev.Cli`).

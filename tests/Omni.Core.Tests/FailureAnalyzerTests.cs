@@ -124,4 +124,26 @@ public class FailureAnalyzerTests
         Assert.Contains("Missing npm script: 'dev'", diagnosis.Summary);
         Assert.Contains("Add a 'dev' script to package.json", diagnosis.SuggestedRemediation);
     }
+
+    [Fact]
+    public void Diagnoses_Live_NextJs_Proxy_ECONNREFUSED()
+    {
+        var recentLines = new[]
+        {
+            "[ web ] - Cache Components enabled",
+            "[ web ] - Partial Prefetching enabled",
+            "[ web ] Route /login is rendering with server caches disabled...",
+            "[ web ] GET /login?next=%2Fdashboard 200 in 2.3s"
+        };
+        var line = "[ web ] Failed to proxy http://127.0.0.1:4000/api/v1/auth/refresh Error: connect ECONNREFUSED 127.0.0.1:4000";
+
+        var diagnosis = FailureAnalyzer.TryAnalyzeLive("web", line, recentLines);
+
+        Assert.NotNull(diagnosis);
+        Assert.True(diagnosis.IsLive);
+        Assert.Equal(DiagnosticCategory.ConnectionRefused, diagnosis.Category);
+        Assert.Equal("127.0.0.1:4000", diagnosis.OffendingDetail);
+        Assert.Contains("Unable to reach 127.0.0.1:4000", diagnosis.Summary);
+        Assert.Contains("api", diagnosis.SuggestedRemediation);
+    }
 }

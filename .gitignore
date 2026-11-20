@@ -19,3 +19,8 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+## Untracked Deployment Guides (Kept locally only)
+DEPLOYMENT.md
+DEPLOYMENT_LOCAL.md
+docs/deployment-guide.md
+
